@@ -15,6 +15,7 @@ https://cms-service-lumi.web.cern.ch/cms-service-lumi/brilwsdoc.html
 
 Author: Alex Aubuchon
 """
+import os
 import ROOT
 from lumi_info import LumiInfo
 from plots import get_plots, post_fill
@@ -23,7 +24,7 @@ from helpers import lct_cut
 
 # Constants -------------------------------------------------------------------
 
-MAX_EVT = 2000000
+MAX_EVT = 10000
 PLOTS_OUTPUT = "out/plots_zerobias.root"
 
 DATA_DIR = "data/"
@@ -52,9 +53,13 @@ def run():
 
     # Prepare input/output ----------------------------------------------------
 
-    # Create output file and load empty histograms
+    # Create output directory/file
+    if not os.path.exists(os.path.dirname(PLOTS_OUTPUT)):
+        os.makedirs(os.path.dirname(PLOTS_OUTPUT))
     output_file = ROOT.TFile(PLOTS_OUTPUT, "RECREATE")
-    p = get_plots(output_file)  # Load plots from ./plots.py
+
+    # Load plots from ./plots.py
+    p = get_plots(output_file)
 
     # Load ntuple files
     chain = ROOT.TChain("FlatNtupleData/tree")
