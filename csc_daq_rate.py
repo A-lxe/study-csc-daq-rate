@@ -24,7 +24,7 @@ from helpers import lct_cut
 
 # Constants -------------------------------------------------------------------
 
-MAX_EVT = 10000
+MAX_EVT = 2000000
 PLOTS_OUTPUT = "out/plots_zerobias.root"
 
 DATA_DIR = "data/"

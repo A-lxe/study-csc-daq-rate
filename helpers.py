@@ -3,8 +3,8 @@
 
 
 def lct_cut(event, lct):
-    """Return true if lct passes the cut"""
+    """Return true if lct isn't CSC or is a neighbor"""
     return (
-        not event.hit_isCSC[lct] and
-        not event.hit_neighbor[lct]
+        event.hit_isCSC[lct] or
+        event.hit_neighbor[lct]
     )
