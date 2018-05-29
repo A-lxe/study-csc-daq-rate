@@ -17,24 +17,25 @@ Author: Alex Aubuchon
 """
 import os
 import ROOT
+from collections import defaultdict
 from lumi_info import LumiInfo
 from plots import get_plots, post_fill
-from helpers import lct_cut
+from helpers import lct_cut, location, fill_plot, plot_id
 
 
 # Constants -------------------------------------------------------------------
 
 MAX_EVT = 2000000
-PLOTS_OUTPUT = "out/plots_zerobias.root"
+PLOTS_OUTPUT = "out/plots_singlemu.root"
 
 DATA_DIR = "data/"
 LUMI_INFO_DIR = "lumi_info/"
 
 FILES = map(lambda f: DATA_DIR + f, [
-    "NTuple_ZeroBias1_FlatNtuple_Run_306091_2018_03_02_ZB1.root",
-    # "NTuple_SingleMuon_FlatNtuple_Run_306092_2018_03_02_SingleMu.root",
-    # "NTuple_SingleMuon_FlatNtuple_Run_306135_2018_03_02_SingleMu.root",
-    # "NTuple_SingleMuon_FlatNtuple_Run_306154_2018_03_02_SingleMu.root",
+    # "NTuple_ZeroBias1_FlatNtuple_Run_306091_2018_03_02_ZB1.root",
+    "NTuple_SingleMuon_FlatNtuple_Run_306092_2018_03_02_SingleMu.root",
+    "NTuple_SingleMuon_FlatNtuple_Run_306135_2018_03_02_SingleMu.root",
+    "NTuple_SingleMuon_FlatNtuple_Run_306154_2018_03_02_SingleMu.root",
 ])
 
 LUMI_FILES = map(lambda f: LUMI_INFO_DIR + f, [
@@ -82,6 +83,7 @@ def run():
         if counter > MAX_EVT:
             break
 
+        ls = event.evt_LS
         # NOTE these use hardcoded keys from the lumi info
         pu = float(lumi_info.get_info(
             event.evt_run, event.evt_LS)['avgpu'])
@@ -89,37 +91,46 @@ def run():
             event.evt_run, event.evt_LS)['delivered(1e30/cm2s)'])
 
         p['EventsByHits'].Fill(event.nHits)
-        p['EventsByLS'].Fill(event.evt_LS)
+        p['EventsByLS'].Fill(ls)
         p['EventsByPU'].Fill(pu)
         p['EventsByDelLumi'].Fill(del_lumi)
 
-        # Keep track of unique chambers
-        chambers = set()
+        # Keep track of chamber occupancies
+        chambers = defaultdict(lambda: 0)
 
         for lct in range(event.nHits):
             if lct_cut(event, lct):
                 continue
-            chambers.add((
-                event.hit_endcap[lct],
-                event.hit_station[lct],
-                event.hit_ring[lct],
-                event.hit_chamber[lct]
-            ))
-            p['LCTsByLS'].Fill(event.evt_LS)
-            p['LCTsByPU'].Fill(pu)
-            p['LCTsByDelLumi'].Fill(del_lumi)
+            endcap = '+' if event.hit_endcap[lct] == 1 else '-'
+            station = event.hit_station[lct]
+            ring = event.hit_ring[lct]
+            chamber = event.hit_chamber[lct]
 
-        for chamber in chambers:
-            p['ChambersByLS'].Fill(event.evt_LS)
-            p['ChambersByPU'].Fill(pu)
-            p['ChambersByDelLumi'].Fill(del_lumi)
+            # Add an LCT to the chamber
+            chambers[(
+                endcap, station, ring, chamber
+            )] += 1
+
+        for c in chambers:
+            fill_plot(p, 'Chambers', 'LS', c[0], c[1], c[2], ls)
+            fill_plot(p, 'Chambers', 'PU', c[0], c[1], c[2], pu)
+            fill_plot(p, 'Chambers', 'DelLumi', c[0], c[1], c[2], del_lumi)
+
+            # Plot at most 2 LCTs per chamber
+            count = min(2, chambers[c])
+            for i in range(chambers[c]):
+                fill_plot(p, 'LCTs', 'LS', c[0], c[1], c[2], ls)
+                fill_plot(p, 'LCTs', 'PU', c[0], c[1], c[2], pu)
+                fill_plot(p, 'LCTs', 'DelLumi', c[0], c[1], c[2], del_lumi)
 
         for trk in range(event.nTracks):
             p['trkPt'].Fill(event.trk_pt[trk])
             p['trkNLcts'].Fill(event.trk_nHits[trk])
-            p['TracksByLS'].Fill(event.evt_LS)
-            p['TracksByPU'].Fill(pu)
-            p['TracksByDelLumi'].Fill(del_lumi)
+
+            loc = location('+-', 'All', 'All')
+            p[plot_id('Tracks', 'LS', loc)].Fill(ls)
+            p[plot_id('Tracks', 'PU', loc)].Fill(ls)
+            p[plot_id('Tracks', 'DelLumi', loc)].Fill(ls)
 
     # Cleanup -----------------------------------------------------------------
 
