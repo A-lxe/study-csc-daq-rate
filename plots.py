@@ -14,7 +14,7 @@ def get_plots(outfile):
     plots['EventsByPU'] = ROOT.TH1D(
         'EventsByPU', 'Events by PU', 100, 0, 100)
     plots['EventsByDelLumi'] = ROOT.TH1D(
-        'EventsByDelLumi', 'Events by DelLumi', 30000, 0, 30000)
+        'EventsByDelLumi', 'Events by DelLumi', 2500, 0, 2.5)
 
     # Track Summary Info
     plots['trkPt'] = ROOT.TH1D('trkPt', 'Track pT', 100, 0, 100)
@@ -24,7 +24,7 @@ def get_plots(outfile):
     x_axis_ranges = {
         'LS': (1000, 0, 1000),
         'PU': (100, 0, 100),
-        'DelLumi': (30000, 0, 30000)
+        'DelLumi': (2500, 0, 2.5)
     }
     x_axis_titles = {
         'LS': 'Lumi Section #',
@@ -46,6 +46,10 @@ def get_plots(outfile):
                 plots[root_id] = ROOT.TH1D(root_id, name,
                                            xar[0], xar[1], xar[2])
                 plots[root_id].GetXaxis().SetTitle(x_axis_titles[by])
+
+    # Enable tracking sum of squares of weights
+    for p in plots:
+        plots[p].Sumw2()
 
     return plots
 
