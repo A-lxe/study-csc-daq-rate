@@ -19,7 +19,7 @@ import ROOT
 import os
 import sys
 from collections import defaultdict
-from helpers import lct_cut, location, fill_plot, plot_id
+from helpers import lct_cut, location, fill_plot, plot_id, event_contains_emtf_singlemu_track
 from lumi_info import LumiInfo
 from plots import get_plots, post_fill
 
@@ -100,6 +100,8 @@ def run(input_files=FILES_ZB, output_file=PLOTS_OUTPUT_ZB):
         if counter > MAX_EVT:
             break
 
+        contains_emtf_smu = event_contains_emtf_singlemu_track(event)
+        
         ls=event.evt_LS
         # NOTE these use hardcoded keys from the lumi info
         pu=float(lumi_info.get_info(
@@ -107,10 +109,16 @@ def run(input_files=FILES_ZB, output_file=PLOTS_OUTPUT_ZB):
         del_lumi=float(lumi_info.get_info(
             event.evt_run, event.evt_LS)['delivered(1e30/cm2s)']) / 10000
 
-        p['EventsByHits'].Fill(event.nHits)
-        p['EventsByLS'].Fill(ls)
-        p['EventsByPU'].Fill(pu)
-        p['EventsByDelLumi'].Fill(del_lumi)
+        p['events_by_hits'].Fill(event.nHits)
+        p['events_by_ls'].Fill(ls)
+        p['events_by_pu'].Fill(pu)
+        p['events_by_dellumi'].Fill(del_lumi)
+
+        if contains_emtf_smu:
+            p['emtf-smuqual-events_by_hits'].Fill(event.nHits)
+            p['emtf-smuqual-events_by_ls'].Fill(ls)
+            p['emtf-smuqual-events_by_pu'].Fill(pu)
+            p['emtf-smuqual-events_by_dellumi'].Fill(del_lumi)
 
         # Keep track of chamber occupancies
         chambers=defaultdict(lambda: 0)

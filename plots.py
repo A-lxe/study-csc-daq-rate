@@ -6,31 +6,34 @@ def get_plots(outfile):
     """Initialize plots and directories within the currently focused root file."""
     plots = {}
 
+    # X Axis Parameters by the 'By' parameter
+    x_axis_ranges = {
+        'Hits': (100, 0, 100),
+        'LS': (1000, 0, 1000),
+        'PU': (100, 0, 100),
+        'DelLumi': (250, 0, 2.5)
+    }
+    x_axis_titles = {
+        'Hits': 'LCT Count',
+        'LS': 'Lumi Section #',
+        'PU': 'Lumi Section PileUp',
+        'DelLumi': 'Lumi Section Delivered Luminosity [1e34cm^-2s^-1]'
+    }
+
     # Event Plots
-    plots['EventsByHits'] = ROOT.TH1D(
-        'EventsByHits', 'Events by Hit Count', 100, 0, 100)
-    plots['EventsByLS'] = ROOT.TH1D(
-        'EventsByLS', 'Events by LS', 1000, 0, 1000)
-    plots['EventsByPU'] = ROOT.TH1D(
-        'EventsByPU', 'Events by PU', 100, 0, 100)
-    plots['EventsByDelLumi'] = ROOT.TH1D(
-        'EventsByDelLumi', 'Events by DelLumi', 2500, 0, 2.5)
+    for evt_type in ['Events', 'EMTF-SMuQual-Events']:
+        for by in ['Hits', 'LS', 'PU', 'DelLumi']:
+            root_id = plot_id(evt_type, by)
+            name = plot_name(evt_type, by)
+            xar = x_axis_ranges[by]
+
+            plots[root_id] = ROOT.TH1D(root_id, name,
+                                       xar[0], xar[1], xar[2])
+            plots[root_id].GetXaxis().SetTitle(x_axis_titles[by])
 
     # Track Summary Info
     plots['trkPt'] = ROOT.TH1D('trkPt', 'Track pT', 100, 0, 100)
     plots['trkNLcts'] = ROOT.TH1D('trkNLcts', 'Track # LCTs', 5, 0, 5)
-
-    # X Axis Parameters by the 'By' parameter
-    x_axis_ranges = {
-        'LS': (1000, 0, 1000),
-        'PU': (100, 0, 100),
-        'DelLumi': (2500, 0, 2.5)
-    }
-    x_axis_titles = {
-        'LS': 'Lumi Section #',
-        'PU': 'Lumi Section PileUp',
-        'DelLumi': 'Lumi Section Delivered Luminosity'
-    }
 
     # Loop over observed objects, over x axis, and over location
     # (ie LCTs by PU in ME+1/2)
@@ -67,10 +70,11 @@ def post_fill(outfile, plots):
             dirA.mkdir('by{}'.format(by)).cd()
             for loc in locations():
                 obj_plotid = plot_id(obj, by, loc)
-                events_plotid = 'EventsBy' + by
+                events_plotid = plot_id('Events', by)
 
-                name = "{} Per Event By {} In {}".format(obj, by, loc)
-                root_id = name.replace(' ', '')
+                new_obj = "{}-Per-Event".format(obj)
+                name = plot_name(new_obj, by, loc)
+                root_id = plot_id(new_obj,  by, loc)
 
                 # Divide the plot by the corresponding Events plot
                 p = plots[obj_plotid].Clone(root_id)
@@ -80,12 +84,12 @@ def post_fill(outfile, plots):
 
             # Copy the ME+-All/All plot to the parent directory
             dirA.cd()
-            summary_id = "{}PerEventBy{}In{}".format(
-                obj, by, location('+-', 'All', 'All'))
-            p = plots[summary_id].Clone('{}PerEventBy{}'.format(obj, by))
-            plots['{}PerEventBy{}'.format(obj, by)] = p
+            new_obj = "{}-Per-Event".format(obj)
+            summary_id = plot_id(new_obj, by, location('+-', 'All', 'All'))
+            p = plots[summary_id].Clone(plot_id(new_obj, by))
+            plots[plot_id(new_obj, by)] = p
 
     # Linear fit each plot
     ROOT.gStyle.SetOptFit(1)
     for p in plots:
-        plots[p].Fit('pol1', 'W')  # Linear fit with all non-empty weights = 1
+        plots[p].Fit('pol1', 'W')

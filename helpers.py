@@ -19,12 +19,22 @@ def location(endcap, station, ring):
     return 'ME{}{}/{}'.format(endcap, station, ring)
 
 
-def plot_id(obj, by, loc):
-    return "{}By{}In{}".format(obj, by, loc)
+def plot_id(obj, by=None, loc=None):
+    pid = obj
+    if by:
+        pid += "_by_{}".format(by)
+    if loc:
+        pid += "_in_{}".format(loc)
+    return pid.lower()
 
 
-def plot_name(obj, by, loc):
-    return "{} By {} In {}".format(obj, by, loc)
+def plot_name(obj, by=None, loc=None):
+    pid = obj
+    if by:
+        pid += " By {}".format(by)
+    if loc:
+        pid += " In {}".format(loc)
+    return pid
 
 
 def lct_cut(event, lct):
@@ -33,6 +43,9 @@ def lct_cut(event, lct):
         not event.hit_isCSC[lct] or
         event.hit_neighbor[lct]
     )
+
+def event_contains_emtf_singlemu_track(event):
+    return False
 
 
 def fill_plot(plots, obj, by, endcap, station, ring, value):
