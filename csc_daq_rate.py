@@ -15,35 +15,28 @@ https://cms-service-lumi.web.cern.ch/cms-service-lumi/brilwsdoc.html
 
 Author: Alex Aubuchon
 """
+import argparse
 import ROOT
 import os
-import sys
 from collections import defaultdict
-from helpers import lct_cut, location, fill_plot, plot_id, event_contains_emtf_singlemu_track
+from helpers import lct_cut, location, fill_plot, plot_id, is_emtf_singlemu22_event
 from lumi_info import LumiInfo
 from plots import get_plots, post_fill
 
 
 # Constants -------------------------------------------------------------------
 
-MAX_EVT = 2000000
-
 DATA_DIR = "data/"
 LUMI_INFO_DIR = "lumi_info/"
 
-PLOTS_OUTPUT_ZB = "out/plots_zerobias.root"
-FILES_ZB = [DATA_DIR + f for f in [
-    "NTuple_ZeroBias1_FlatNtuple_Run_306091_2018_03_02_ZB1.root",
-]]
+FILES = {
+    "zerobias_306091": [DATA_DIR + "NTuple_ZeroBias1_FlatNtuple_Run_306091_2018_03_02_ZB1.root"],
+    "singlemu_306092": [DATA_DIR + "NTuple_SingleMuon_FlatNtuple_Run_306092_2018_03_02_SingleMu.root"],
+    "singlemu_306135": [DATA_DIR + "NTuple_SingleMuon_FlatNtuple_Run_306135_2018_03_02_SingleMu.root"],
+    "singlemu_306154": [DATA_DIR + "NTuple_SingleMuon_FlatNtuple_Run_306154_2018_03_02_SingleMu.root"],
+}
 
-PLOTS_OUTPUT_SM = "out/plots_singlemu.root"
-FILES_SM = [DATA_DIR + f for f in [
-    "NTuple_SingleMuon_FlatNtuple_Run_306092_2018_03_02_SingleMu.root",
-    "NTuple_SingleMuon_FlatNtuple_Run_306135_2018_03_02_SingleMu.root",
-    "NTuple_SingleMuon_FlatNtuple_Run_306154_2018_03_02_SingleMu.root",
-]]
-
-LUMI_FILES= [LUMI_INFO_DIR + f for f in [
+LUMI_FILES = [LUMI_INFO_DIR + f for f in [
     "LumiInfo_306091.csv",
     "LumiInfo_306092.csv",
     "LumiInfo_306135.csv",
@@ -51,19 +44,42 @@ LUMI_FILES= [LUMI_INFO_DIR + f for f in [
 ]]
 
 
-def run(input_files=FILES_ZB, output_file=PLOTS_OUTPUT_ZB):
+# Main Function ---------------------------------------------------------------
+
+def main():
+    queries = [key for key in FILES]
+    parser = argparse.ArgumentParser(description='Run AutoDQM offline.')
+    parser.add_argument('query', type=str,
+                        help="dataset to process. One of {}".format(queries))
+    parser.add_argument('-n', '--event-count', type=int, default=1000000,
+                        help="number of events to process")
+    parser.add_argument('-o', '--output', type=str,
+                        help="output filename")
+    args = parser.parse_args()
+
+    input_files = FILES[args.query]
+    if not args.output:
+        args.output = 'out/results-{}_{}-events.root'.format(
+            args.query, args.event_count)
+    run(input_files, args.output, args.event_count)
+
+
+# Analysis Functions-----------------------------------------------------------
+
+def run(input_files, output_file, max_events, verbose=True):
 
     # Print run information ---------------------------------------------------
 
-    print('Max events: {}'.format(MAX_EVT))
-    print('Output file: {}'.format(output_file))
-    print('Input files: ')
-    for f in input_files:
-        print('\t{}'.format(f))
-    print('Lumi Info files: ')
-    for f in LUMI_FILES:
-        print('\t{}'.format(f))
-    print('')
+    if verbose:
+        print('Max events: {}'.format(max_events))
+        print('Output file: {}'.format(output_file))
+        print('Input files: ')
+        for f in input_files:
+            print('\t{}'.format(f))
+        print('Lumi Info files: ')
+        for f in LUMI_FILES:
+            print('\t{}'.format(f))
+        print('')
 
     # Set ROOT options --------------------------------------------------------
 
@@ -74,18 +90,18 @@ def run(input_files=FILES_ZB, output_file=PLOTS_OUTPUT_ZB):
     # Create output directory/file
     if not os.path.exists(os.path.dirname(output_file)):
         os.makedirs(os.path.dirname(output_file))
-    output_file=ROOT.TFile(output_file, "RECREATE")
+    output_file = ROOT.TFile(output_file, "RECREATE")
 
     # Load plots from ./plots.py
-    p=get_plots(output_file)
+    p = get_plots(output_file)
 
     # Load ntuple files
-    chain=ROOT.TChain("FlatNtupleData/tree")
+    chain = ROOT.TChain("FlatNtupleData/tree")
     for f in input_files:
         chain.Add(f)
 
     # Load lumi info files
-    lumi_info=LumiInfo()
+    lumi_info = LumiInfo()
     for f in LUMI_FILES:
         lumi_info.load_csv(f)
 
@@ -95,18 +111,18 @@ def run(input_files=FILES_ZB, output_file=PLOTS_OUTPUT_ZB):
     # updates the event index. Enumerate just lets counter hold the number of
     # events processed
     for counter, event in enumerate(chain):
-        if counter % 1000 == 0:
+        if counter % 1000 == 0 and verbose:
             print("Processed {} events".format(counter))
-        if counter > MAX_EVT:
+        if counter >= max_events:
             break
 
-        contains_emtf_smu = event_contains_emtf_singlemu_track(event)
-        
-        ls=event.evt_LS
+        contains_emtf_smu = is_emtf_singlemu22_event(event)
+
+        ls = event.evt_LS
         # NOTE these use hardcoded keys from the lumi info
-        pu=float(lumi_info.get_info(
+        pu = float(lumi_info.get_info(
             event.evt_run, event.evt_LS)['avgpu'])
-        del_lumi=float(lumi_info.get_info(
+        del_lumi = float(lumi_info.get_info(
             event.evt_run, event.evt_LS)['delivered(1e30/cm2s)']) / 10000
 
         p['events_by_hits'].Fill(event.nHits)
@@ -119,17 +135,22 @@ def run(input_files=FILES_ZB, output_file=PLOTS_OUTPUT_ZB):
             p['emtf-smuqual-events_by_ls'].Fill(ls)
             p['emtf-smuqual-events_by_pu'].Fill(pu)
             p['emtf-smuqual-events_by_dellumi'].Fill(del_lumi)
+        else:
+            p['not-emtf-smuqual-events_by_hits'].Fill(event.nHits)
+            p['not-emtf-smuqual-events_by_ls'].Fill(ls)
+            p['not-emtf-smuqual-events_by_pu'].Fill(pu)
+            p['not-emtf-smuqual-events_by_dellumi'].Fill(del_lumi)
 
         # Keep track of chamber occupancies
-        chambers=defaultdict(lambda: 0)
+        chambers = defaultdict(lambda: 0)
 
         for lct in range(event.nHits):
             if lct_cut(event, lct):
                 continue
-            endcap='+' if event.hit_endcap[lct] == 1 else '-'
-            station=event.hit_station[lct]
-            ring=event.hit_ring[lct]
-            chamber=event.hit_chamber[lct]
+            endcap = '+' if event.hit_endcap[lct] == 1 else '-'
+            station = event.hit_station[lct]
+            ring = event.hit_ring[lct]
+            chamber = event.hit_chamber[lct]
 
             # Add an LCT to the chamber
             chambers[(
@@ -140,31 +161,75 @@ def run(input_files=FILES_ZB, output_file=PLOTS_OUTPUT_ZB):
             fill_plot(p, 'Chambers', 'LS', c[0], c[1], c[2], ls)
             fill_plot(p, 'Chambers', 'PU', c[0], c[1], c[2], pu)
             fill_plot(p, 'Chambers', 'DelLumi', c[0], c[1], c[2], del_lumi)
+            if contains_emtf_smu:
+                fill_plot(p, 'EMTF-SMuQual-Event-Chambers',
+                          'LS', c[0], c[1], c[2], ls)
+                fill_plot(p, 'EMTF-SMuQual-Event-Chambers',
+                          'PU', c[0], c[1], c[2], pu)
+                fill_plot(p, 'EMTF-SMuQual-Event-Chambers',
+                          'DelLumi', c[0], c[1], c[2], del_lumi)
+            else:
+                fill_plot(p, 'Not-EMTF-SMuQual-Event-Chambers',
+                          'LS', c[0], c[1], c[2], ls)
+                fill_plot(p, 'Not-EMTF-SMuQual-Event-Chambers',
+                          'PU', c[0], c[1], c[2], pu)
+                fill_plot(p, 'Not-EMTF-SMuQual-Event-Chambers',
+                          'DelLumi', c[0], c[1], c[2], del_lumi)
 
             # Plot at most 2 LCTs per chamber
-            count=min(2, chambers[c])
-            for i in range(chambers[c]):
+            count = min(2, chambers[c])
+            for i in range(count):
                 fill_plot(p, 'LCTs', 'LS', c[0], c[1], c[2], ls)
                 fill_plot(p, 'LCTs', 'PU', c[0], c[1], c[2], pu)
                 fill_plot(p, 'LCTs', 'DelLumi', c[0], c[1], c[2], del_lumi)
+                if contains_emtf_smu:
+                    fill_plot(p, 'EMTF-SMuQual-Event-LCTs',
+                              'LS', c[0], c[1], c[2], ls)
+                    fill_plot(p, 'EMTF-SMuQual-Event-LCTs',
+                              'PU', c[0], c[1], c[2], pu)
+                    fill_plot(p, 'EMTF-SMuQual-Event-LCTs',
+                              'DelLumi', c[0], c[1], c[2], del_lumi)
+                else:
+                    fill_plot(p, 'Not-EMTF-SMuQual-Event-LCTs',
+                              'LS', c[0], c[1], c[2], ls)
+                    fill_plot(p, 'Not-EMTF-SMuQual-Event-LCTs',
+                              'PU', c[0], c[1], c[2], pu)
+                    fill_plot(p, 'Not-EMTF-SMuQual-Event-LCTs',
+                              'DelLumi', c[0], c[1], c[2], del_lumi)
 
         for trk in range(event.nTracks):
-            p['trkPt'].Fill(event.trk_pt[trk])
-            p['trkNLcts'].Fill(event.trk_nHits[trk])
+            p['all_trk-pt'].Fill(event.trk_pt[trk])
+            p['all_trk-nlcts'].Fill(event.trk_nHits[trk])
+            if contains_emtf_smu:
+                p['emtf-smuqual-event_trk-pt'].Fill(event.trk_pt[trk])
+                p['emtf-smuqual-event_trk-nlcts'].Fill(event.trk_nHits[trk])
+            else:
+                p['not-emtf-smuqual-event_trk-pt'].Fill(event.trk_pt[trk])
+                p['not-emtf-smuqual-event_trk-nlcts'].Fill(
+                    event.trk_nHits[trk])
 
-            loc=location('+-', 'All', 'All')
+            loc = location('+-', 'All', 'All')
             p[plot_id('Tracks', 'LS', loc)].Fill(ls)
             p[plot_id('Tracks', 'PU', loc)].Fill(ls)
             p[plot_id('Tracks', 'DelLumi', loc)].Fill(ls)
+            if contains_emtf_smu:
+                p[plot_id('EMTF-SMuQual-Event-Tracks', 'LS', loc)].Fill(ls)
+                p[plot_id('EMTF-SMuQual-Event-Tracks', 'PU', loc)].Fill(ls)
+                p[plot_id('EMTF-SMuQual-Event-Tracks',
+                          'DelLumi', loc)].Fill(ls)
+            else:
+                p[plot_id('Not-EMTF-SMuQual-Event-Tracks', 'LS', loc)].Fill(ls)
+                p[plot_id('Not-EMTF-SMuQual-Event-Tracks', 'PU', loc)].Fill(ls)
+                p[plot_id('Not-EMTF-SMuQual-Event-Tracks',
+                          'DelLumi', loc)].Fill(ls)
 
     # Cleanup -----------------------------------------------------------------
 
     post_fill(output_file, p)
     output_file.Write()
 
+    return p
+
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] == 'singlemu':
-        run(input_files=FILES_SM, output_file=PLOTS_OUTPUT_SM)
-    else:
-        run()
+    main()

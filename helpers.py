@@ -44,8 +44,27 @@ def lct_cut(event, lct):
         event.hit_neighbor[lct]
     )
 
-def event_contains_emtf_singlemu_track(event):
+
+def is_emtf_singlemu22_event(event):
+    for trk in range(event.nTracks):
+        if is_emtf_singlemu22_track(event, trk):
+            return True
     return False
+
+
+def is_emtf_singlemu22_track(event, track):
+    pT = event.trk_pt[track]
+    nHits = event.trk_nHits[track]
+    quality = 0b0
+    for hitIdx in range(nHits):
+        hit = event.trk_iHit[track][hitIdx]
+        quality |= 1 << (4 - event.hit_station[hit])
+    assert quality < 16
+
+    return (
+        pT >= 22 and
+        quality in {15, 14, 13, 11}
+    )
 
 
 def fill_plot(plots, obj, by, endcap, station, ring, value):

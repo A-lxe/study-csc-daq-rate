@@ -38,3 +38,4 @@ class LumiInfo(object):
         """Print every row of lumi info in this."""
         for ls in self.ls_info:
             print('{0}: {1}'.format(ls, self.ls_info[ls]))
+
