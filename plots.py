@@ -21,7 +21,7 @@ def get_plots(outfile):
     }
 
     # Event Plots
-    for evt_type in ['Events', 'EMTF-SMuQual-Events', 'Not-EMTF-SMuQual-Events']:
+    for evt_type in ['All-Event', 'EMTF-SMuQual-Event', 'Not-EMTF-SMuQual-Event']:
         for by in ['Hits', 'LS', 'PU', 'DelLumi']:
             root_id = plot_id(evt_type, by)
             name = plot_name(evt_type, by)
@@ -35,7 +35,7 @@ def get_plots(outfile):
         'trk-pT': (100, 0, 100),
         'trk-nLCTs': (5, 0, 5)
     }
-    for evt_type in ['All', 'EMTF-SMuQual-Event', 'Not-EMTF-SMuQual-Event']:
+    for evt_type in ['All-Event', 'EMTF-SMuQual-Event', 'Not-EMTF-SMuQual-Event']:
         for obj in ['trk-pT', 'trk-nLCTs']:
             root_id = plot_id("{}_{}".format(evt_type, obj))
             name = plot_name("{}_{}".format(evt_type, obj))
@@ -44,24 +44,20 @@ def get_plots(outfile):
 
     # Loop over observed objects, over x axis, and over location
     # (ie LCTs by PU in ME+1/2)
-    for obj in ['LCTs', 'Chambers', 'Tracks',
-                'EMTF-SMuQual-Event-LCTs',
-                'EMTF-SMuQual-Event-Chambers',
-                'EMTF-SMuQual-Event-Tracks',
-                'Not-EMTF-SMuQual-Event-LCTs',
-                'Not-EMTF-SMuQual-Event-Chambers',
-                'Not-EMTF-SMuQual-Event-Tracks']:
-        dirA = outfile.mkdir(obj)
-        for by in ['LS', 'PU', 'DelLumi']:
-            dirA.mkdir('by{}'.format(by)).cd()
-            for loc in locations():
-                name = plot_name(obj, by, loc)
-                root_id = plot_id(obj, by, loc)
-                xar = x_axis_ranges[by]
+    for evt_type in ['All-Event', 'EMTF-SMuQual-Event', 'Not-EMTF-SMuQual-Event']:
+        for obj in ['LCTs', 'BX0-LCTs', 'Chambers', 'BX0-Chambers', 'Tracks']:
+            obj = '{}-{}'.format(evt_type, obj)
+            dirA = outfile.mkdir(obj)
+            for by in ['LS', 'PU', 'DelLumi']:
+                dirA.mkdir('by{}'.format(by)).cd()
+                for loc in locations():
+                    name = plot_name(obj, by, loc)
+                    root_id = plot_id(obj, by, loc)
+                    xar = x_axis_ranges[by]
 
-                plots[root_id] = ROOT.TH1D(root_id, name,
-                                           xar[0], xar[1], xar[2])
-                plots[root_id].GetXaxis().SetTitle(x_axis_titles[by])
+                    plots[root_id] = ROOT.TH1D(root_id, name,
+                                               xar[0], xar[1], xar[2])
+                    plots[root_id].GetXaxis().SetTitle(x_axis_titles[by])
 
     # Enable tracking sum of squares of weights
     for p in plots:
@@ -77,84 +73,32 @@ def post_fill(outfile, plots):
 
     # Loop over observed objects, over x axis, and over location
     # (ie LCTs by PU in ME+1/2)
-    for obj in ['LCTs', 'Chambers', 'Tracks']:
-        dirA = outfile.mkdir(obj + 'PerEvent')
-        for by in ['LS', 'PU', 'DelLumi']:
-            dirA.mkdir('by{}'.format(by)).cd()
-            for loc in locations():
-                obj_plotid = plot_id(obj, by, loc)
-                events_plotid = plot_id('Events', by)
+    for evt_type in ["All-Event", "EMTF-SMuQual-Event", "Not-EMTF-SMuQual-Event"]:
+        for obj in ['LCTs', 'BX0-LCTs', 'Chambers', 'BX0-Chambers', 'Tracks']:
+            obj = '{}-{}'.format(evt_type, obj)
+            dirA = outfile.mkdir(obj + 'PerEvent')
+            for by in ['LS', 'PU', 'DelLumi']:
+                dirA.mkdir('by{}'.format(by)).cd()
+                for loc in locations():
+                    obj_plotid = plot_id(obj, by, loc)
+                    events_plotid = plot_id(evt_type, by)
 
+                    new_obj = "{}-Per-Event".format(obj)
+                    name = plot_name(new_obj, by, loc)
+                    root_id = plot_id(new_obj,  by, loc)
+
+                    # Divide the plot by the corresponding Events plot
+                    p = plots[obj_plotid].Clone(root_id)
+                    p.SetTitle(name)
+                    p.Divide(plots[events_plotid])
+                    plots[root_id] = p
+
+                # Copy the ME+-All/All plot to the parent directory
+                dirA.cd()
                 new_obj = "{}-Per-Event".format(obj)
-                name = plot_name(new_obj, by, loc)
-                root_id = plot_id(new_obj,  by, loc)
-
-                # Divide the plot by the corresponding Events plot
-                p = plots[obj_plotid].Clone(root_id)
-                p.SetTitle(name)
-                p.Divide(plots[events_plotid])
-                plots[root_id] = p
-
-            # Copy the ME+-All/All plot to the parent directory
-            dirA.cd()
-            new_obj = "{}-Per-Event".format(obj)
-            summary_id = plot_id(new_obj, by, location('+-', 'All', 'All'))
-            p = plots[summary_id].Clone(plot_id(new_obj, by))
-            plots[plot_id(new_obj, by)] = p
-
-    for obj in ['EMTF-SMuQual-Event-LCTs',
-                'EMTF-SMuQual-Event-Chambers',
-                'EMTF-SMuQual-Event-Tracks']:
-        dirA = outfile.mkdir(obj + 'Per_EMTF-SMuQual-Event')
-        for by in ['LS', 'PU', 'DelLumi']:
-            dirA.mkdir('by{}'.format(by)).cd()
-            for loc in locations():
-                obj_plotid = plot_id(obj, by, loc)
-                events_plotid = plot_id('EMTF-SMuQual-Events', by)
-
-                new_obj = "{}-Per-Event".format(obj)
-                name = plot_name(new_obj, by, loc)
-                root_id = plot_id(new_obj,  by, loc)
-
-                # Divide the plot by the corresponding Events plot
-                p = plots[obj_plotid].Clone(root_id)
-                p.SetTitle(name)
-                p.Divide(plots[events_plotid])
-                plots[root_id] = p
-
-            # Copy the ME+-All/All plot to the parent directory
-            dirA.cd()
-            new_obj = "{}-Per-Event".format(obj)
-            summary_id = plot_id(new_obj, by, location('+-', 'All', 'All'))
-            p = plots[summary_id].Clone(plot_id(new_obj, by))
-            plots[plot_id(new_obj, by)] = p
-
-    for obj in ['Not-EMTF-SMuQual-Event-LCTs',
-                'Not-EMTF-SMuQual-Event-Chambers',
-                'Not-EMTF-SMuQual-Event-Tracks']:
-        dirA = outfile.mkdir(obj + 'Per_Not-EMTF-SMuQual-Event')
-        for by in ['LS', 'PU', 'DelLumi']:
-            dirA.mkdir('by{}'.format(by)).cd()
-            for loc in locations():
-                obj_plotid = plot_id(obj, by, loc)
-                events_plotid = plot_id('Not-EMTF-SMuQual-Events', by)
-
-                new_obj = "{}-Per-Event".format(obj)
-                name = plot_name(new_obj, by, loc)
-                root_id = plot_id(new_obj,  by, loc)
-
-                # Divide the plot by the corresponding Events plot
-                p = plots[obj_plotid].Clone(root_id)
-                p.SetTitle(name)
-                p.Divide(plots[events_plotid])
-                plots[root_id] = p
-
-            # Copy the ME+-All/All plot to the parent directory
-            dirA.cd()
-            new_obj = "{}-Per-Event".format(obj)
-            summary_id = plot_id(new_obj, by, location('+-', 'All', 'All'))
-            p = plots[summary_id].Clone(plot_id(new_obj, by))
-            plots[plot_id(new_obj, by)] = p
+                summary_id = plot_id(new_obj, by, location('+-', 'All', 'All'))
+                p = plots[summary_id].Clone(plot_id(new_obj, by))
+                plots[plot_id(new_obj, by)] = p
 
     # Linear fit each plot
     ROOT.gStyle.SetOptFit(1)
