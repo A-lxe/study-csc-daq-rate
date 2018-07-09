@@ -34,14 +34,13 @@ FILES = {
     "singlemu_306092": [DATA_DIR + "NTuple_SingleMuon_FlatNtuple_Run_306092_2018_03_02_SingleMu.root"],
     "singlemu_306135": [DATA_DIR + "NTuple_SingleMuon_FlatNtuple_Run_306135_2018_03_02_SingleMu.root"],
     "singlemu_306154": [DATA_DIR + "NTuple_SingleMuon_FlatNtuple_Run_306154_2018_03_02_SingleMu.root"],
+    "zmu_306091": [DATA_DIR + "EMTF_ZMu_NTuple_306091_simLCT_test.root"],
+    "zmu_316995": [DATA_DIR + "EMTF_ZMu_NTuple_316995_simLCT_test.root"],
+    "zmu_317661": [DATA_DIR + "EMTF_ZMu_NTuple_317661_simLCT_test.root"],
 }
 
-LUMI_FILES = [LUMI_INFO_DIR + f for f in [
-    "LumiInfo_306091.csv",
-    "LumiInfo_306092.csv",
-    "LumiInfo_306135.csv",
-    "LumiInfo_306154.csv",
-]]
+LUMI_FILES = [LUMI_INFO_DIR +
+              f for f in os.listdir(LUMI_INFO_DIR) if f[-4:] == '.csv']
 
 
 # Main Function ---------------------------------------------------------------
@@ -125,24 +124,25 @@ def run(input_files, output_file, max_events, verbose=True):
         del_lumi = float(lumi_info.get_info(
             event.evt_run, event.evt_LS)['delivered(1e30/cm2s)']) / 10000
 
-        p['events_by_hits'].Fill(event.nHits)
-        p['events_by_ls'].Fill(ls)
-        p['events_by_pu'].Fill(pu)
-        p['events_by_dellumi'].Fill(del_lumi)
+        p['all-event_by_hits'].Fill(event.nHits)
+        p['all-event_by_ls'].Fill(ls)
+        p['all-event_by_pu'].Fill(pu)
+        p['all-event_by_dellumi'].Fill(del_lumi)
 
         if contains_emtf_smu:
-            p['emtf-smuqual-events_by_hits'].Fill(event.nHits)
-            p['emtf-smuqual-events_by_ls'].Fill(ls)
-            p['emtf-smuqual-events_by_pu'].Fill(pu)
-            p['emtf-smuqual-events_by_dellumi'].Fill(del_lumi)
+            p['emtf-smuqual-event_by_hits'].Fill(event.nHits)
+            p['emtf-smuqual-event_by_ls'].Fill(ls)
+            p['emtf-smuqual-event_by_pu'].Fill(pu)
+            p['emtf-smuqual-event_by_dellumi'].Fill(del_lumi)
         else:
-            p['not-emtf-smuqual-events_by_hits'].Fill(event.nHits)
-            p['not-emtf-smuqual-events_by_ls'].Fill(ls)
-            p['not-emtf-smuqual-events_by_pu'].Fill(pu)
-            p['not-emtf-smuqual-events_by_dellumi'].Fill(del_lumi)
+            p['not-emtf-smuqual-event_by_hits'].Fill(event.nHits)
+            p['not-emtf-smuqual-event_by_ls'].Fill(ls)
+            p['not-emtf-smuqual-event_by_pu'].Fill(pu)
+            p['not-emtf-smuqual-event_by_dellumi'].Fill(del_lumi)
 
         # Keep track of chamber occupancies
         chambers = defaultdict(lambda: 0)
+        bx0_chambers = defaultdict(lambda: 0)
 
         for lct in range(event.nHits):
             if lct_cut(event, lct):
@@ -151,16 +151,21 @@ def run(input_files, output_file, max_events, verbose=True):
             station = event.hit_station[lct]
             ring = event.hit_ring[lct]
             chamber = event.hit_chamber[lct]
+            bx = event.hit_BX[lct]
 
             # Add an LCT to the chamber
             chambers[(
                 endcap, station, ring, chamber
             )] += 1
+            if bx == 0:
+                bx0_chambers[(
+                    endcap, station, ring, chamber
+                )] += 1
 
         for c in chambers:
-            fill_plot(p, 'Chambers', 'LS', c[0], c[1], c[2], ls)
-            fill_plot(p, 'Chambers', 'PU', c[0], c[1], c[2], pu)
-            fill_plot(p, 'Chambers', 'DelLumi', c[0], c[1], c[2], del_lumi)
+            fill_plot(p, 'All-Event-Chambers', 'LS', c[0], c[1], c[2], ls)
+            fill_plot(p, 'All-Event-Chambers', 'PU', c[0], c[1], c[2], pu)
+            fill_plot(p, 'All-Event-Chambers', 'DelLumi', c[0], c[1], c[2], del_lumi)
             if contains_emtf_smu:
                 fill_plot(p, 'EMTF-SMuQual-Event-Chambers',
                           'LS', c[0], c[1], c[2], ls)
@@ -179,9 +184,9 @@ def run(input_files, output_file, max_events, verbose=True):
             # Plot at most 2 LCTs per chamber
             count = min(2, chambers[c])
             for i in range(count):
-                fill_plot(p, 'LCTs', 'LS', c[0], c[1], c[2], ls)
-                fill_plot(p, 'LCTs', 'PU', c[0], c[1], c[2], pu)
-                fill_plot(p, 'LCTs', 'DelLumi', c[0], c[1], c[2], del_lumi)
+                fill_plot(p, 'All-Event-LCTs', 'LS', c[0], c[1], c[2], ls)
+                fill_plot(p, 'All-Event-LCTs', 'PU', c[0], c[1], c[2], pu)
+                fill_plot(p, 'All-Event-LCTs', 'DelLumi', c[0], c[1], c[2], del_lumi)
                 if contains_emtf_smu:
                     fill_plot(p, 'EMTF-SMuQual-Event-LCTs',
                               'LS', c[0], c[1], c[2], ls)
@@ -196,10 +201,50 @@ def run(input_files, output_file, max_events, verbose=True):
                               'PU', c[0], c[1], c[2], pu)
                     fill_plot(p, 'Not-EMTF-SMuQual-Event-LCTs',
                               'DelLumi', c[0], c[1], c[2], del_lumi)
+j
+        for c in bx0_chambers:
+            fill_plot(p, 'All-Event-BX0-Chambers', 'LS', c[0], c[1], c[2], ls)
+            fill_plot(p, 'All-Event-BX0-Chambers', 'PU', c[0], c[1], c[2], pu)
+            fill_plot(p, 'All-Event-BX0-Chambers', 'DelLumi', c[0], c[1], c[2], del_lumi)
+            if contains_emtf_smu:
+                fill_plot(p, 'EMTF-SMuQual-Event-BX0-Chambers',
+                          'LS', c[0], c[1], c[2], ls)
+                fill_plot(p, 'EMTF-SMuQual-Event-BX0-Chambers',
+                          'PU', c[0], c[1], c[2], pu)
+                fill_plot(p, 'EMTF-SMuQual-Event-BX0-Chambers',
+                          'DelLumi', c[0], c[1], c[2], del_lumi)
+            else:
+                fill_plot(p, 'Not-EMTF-SMuQual-Event-BX0-Chambers',
+                          'LS', c[0], c[1], c[2], ls)
+                fill_plot(p, 'Not-EMTF-SMuQual-Event-BX0-Chambers',
+                          'PU', c[0], c[1], c[2], pu)
+                fill_plot(p, 'Not-EMTF-SMuQual-Event-BX0-Chambers',
+                          'DelLumi', c[0], c[1], c[2], del_lumi)
+
+            # Plot at most 2 LCTs per chamber
+            count = min(2, chambers[c])
+            for i in range(count):
+                fill_plot(p, 'All-Event-BX0-LCTs', 'LS', c[0], c[1], c[2], ls)
+                fill_plot(p, 'All-Event-BX0-LCTs', 'PU', c[0], c[1], c[2], pu)
+                fill_plot(p, 'All-Event-BX0-LCTs', 'DelLumi', c[0], c[1], c[2], del_lumi)
+                if contains_emtf_smu:
+                    fill_plot(p, 'EMTF-SMuQual-Event-BX0-LCTs',
+                              'LS', c[0], c[1], c[2], ls)
+                    fill_plot(p, 'EMTF-SMuQual-Event-BX0-LCTs',
+                              'PU', c[0], c[1], c[2], pu)
+                    fill_plot(p, 'EMTF-SMuQual-Event-BX0-LCTs',
+                              'DelLumi', c[0], c[1], c[2], del_lumi)
+                else:
+                    fill_plot(p, 'Not-EMTF-SMuQual-Event-BX0-LCTs',
+                              'LS', c[0], c[1], c[2], ls)
+                    fill_plot(p, 'Not-EMTF-SMuQual-Event-BX0-LCTs',
+                              'PU', c[0], c[1], c[2], pu)
+                    fill_plot(p, 'Not-EMTF-SMuQual-Event-BX0-LCTs',
+                              'DelLumi', c[0], c[1], c[2], del_lumi)
 
         for trk in range(event.nTracks):
-            p['all_trk-pt'].Fill(event.trk_pt[trk])
-            p['all_trk-nlcts'].Fill(event.trk_nHits[trk])
+            p['all-event_trk-pt'].Fill(event.trk_pt[trk])
+            p['all-event_trk-nlcts'].Fill(event.trk_nHits[trk])
             if contains_emtf_smu:
                 p['emtf-smuqual-event_trk-pt'].Fill(event.trk_pt[trk])
                 p['emtf-smuqual-event_trk-nlcts'].Fill(event.trk_nHits[trk])
@@ -209,9 +254,9 @@ def run(input_files, output_file, max_events, verbose=True):
                     event.trk_nHits[trk])
 
             loc = location('+-', 'All', 'All')
-            p[plot_id('Tracks', 'LS', loc)].Fill(ls)
-            p[plot_id('Tracks', 'PU', loc)].Fill(ls)
-            p[plot_id('Tracks', 'DelLumi', loc)].Fill(ls)
+            p[plot_id('All-Event-Tracks', 'LS', loc)].Fill(ls)
+            p[plot_id('All-Event-Tracks', 'PU', loc)].Fill(ls)
+            p[plot_id('All-Event-Tracks', 'DelLumi', loc)].Fill(ls)
             if contains_emtf_smu:
                 p[plot_id('EMTF-SMuQual-Event-Tracks', 'LS', loc)].Fill(ls)
                 p[plot_id('EMTF-SMuQual-Event-Tracks', 'PU', loc)].Fill(ls)
